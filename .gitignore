@@ -1,3 +1,6 @@
 # Platform engine binaries fetched by .claude/hooks/session-start.sh.
 # Verified against npm's published dist.integrity at install time, never committed.
 .agents/skills/impeccable/scripts/bin/
+
+# Upload bundles built by scripts; not part of the skills themselves.
+dist/
