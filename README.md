@@ -16,11 +16,13 @@ needs; see below.
 |---|---|
 | [`emilkowalski/skill`](https://github.com/emilkowalski/skill) | `animate`, `animate-expo`, `animation-vocabulary`, `apple-design`, `ask-sonner`, `break-ui`, `emil-design-eng`, `find-animation-opportunities`, `improve-animations`, `mobile-native`, `pick-ui-library`, `prototype`, `review-animations`, `write-swift` |
 | [`Leonxlnx/taste-skill`](https://github.com/Leonxlnx/taste-skill) | `brandkit`, `design-taste-frontend`, `design-taste-frontend-v1`, `full-output-enforcement`, `gpt-taste`, `high-end-visual-design`, `image-to-code`, `imagegen-frontend-mobile`, `imagegen-frontend-web`, `industrial-brutalist-ui`, `minimalist-ui`, `redesign-existing-projects`, `stitch-design-taste` |
+| [`LottieFiles/motion-design-skill`](https://github.com/LottieFiles/motion-design-skill) | `motion-design` |
 | [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | `impeccable` |
 
-`emilkowalski/skill` and `Leonxlnx/taste-skill` were installed with
-`npx skills add <repo>` and are tracked in `skills-lock.json` (27 skills, each
-with a content hash). Both are markdown-only — no scripts or binaries.
+`emilkowalski/skill`, `Leonxlnx/taste-skill` and `LottieFiles/motion-design-skill`
+were installed with `npx skills add <repo>` and are tracked in `skills-lock.json`
+(28 skills, each with a content hash). All three are markdown-only — no scripts
+or binaries.
 
 ## The `impeccable` skill
 
