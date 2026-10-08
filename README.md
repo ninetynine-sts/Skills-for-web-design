@@ -107,3 +107,32 @@ restores signature checking and gets you current:
 ```sh
 npx impeccable install
 ```
+
+## User-level skills
+
+Some skills are cross-project and belong in `~/.claude/skills/` rather than
+vendored here — they should apply in every repo, not just this one. In a cloud
+container that directory is **ephemeral**, so a fresh session starts without
+them.
+
+`.claude/hooks/session-start.sh` re-clones whatever is missing. To add one, append
+a `"<dir-name> <clone-url>"` line to the `USER_SKILLS` list in that script.
+
+Currently restored:
+
+| Skill | Source | Notes |
+|---|---|---|
+| `napkin` | [`blader/napkin`](https://github.com/blader/napkin) | Always-on. Maintains a curated `.claude/napkin.md` runbook per repo. |
+
+This only covers sessions started **from this repo**. For a user-level skill to
+appear in *every* cloud session regardless of repo, put the clone in the
+environment's **Setup script** instead (cloud environment menu in the session
+title bar → Edit):
+
+```sh
+mkdir -p ~/.claude/skills
+[ -d ~/.claude/skills/napkin ] || git clone --depth 1 https://github.com/blader/napkin.git ~/.claude/skills/napkin
+```
+
+On your own machine neither is needed — `~/.claude/skills/` persists there, so a
+plain `git clone` is permanent and `git -C ~/.claude/skills/napkin pull` updates it.

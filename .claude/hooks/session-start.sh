@@ -1,84 +1,124 @@
 #!/bin/bash
-# Preinstall the impeccable engine binary so the skill works without network
-# access to github.com release assets.
+# Session bootstrap for this skills repo. Two independent jobs, neither fatal:
 #
-# Why this exists: .agents/skills/impeccable/scripts/impeccable shells out to a
-# compiled engine. Its last-resort fallback downloads that engine from
-# github.com/pbakaus/impeccable/releases, which some sandboxes block (HTTP 403).
-# Without an engine the skill still loads but degrades to its "launcher
-# unavailable" path, losing context loading, screenshots, the live browser and
-# the edit hooks.
+#   1. install_engine     -- the compiled engine the `impeccable` skill shells
+#                            out to, fetched from npm and hash-verified.
+#   2. install_user_skills -- cross-project skills that live in ~/.claude/skills,
+#                            re-cloned because that directory is ephemeral in a
+#                            cloud container.
 #
-# npm serves the same engine as per-platform packages and is reachable where
-# release assets are not, so fetch from there and verify against the sha512
-# that npm publishes in dist.integrity. Fails closed: no verification, no
-# install. Never commits a binary to the repo.
-set -euo pipefail
+# Each job is a function that RETURNS rather than exits, so an early bail in one
+# never skips the other. The script always exits 0: a missing skill or engine
+# should degrade behavior, never block the session from starting.
+set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
-skill="$root/.agents/skills/impeccable"
-[ -d "$skill" ] || exit 0
 
-ver=$(tr -d '[:space:]' < "$skill/scripts/VERSION" 2>/dev/null || true)
-[ -n "$ver" ] || { echo "impeccable-engine: no scripts/VERSION; skipping" >&2; exit 0; }
+# --------------------------------------------------------------------------
+# 1. impeccable engine
+#
+# The launcher's own fallback downloads this from github.com release assets,
+# which some sandboxes block (HTTP 403). npm serves the same engine as
+# per-platform packages and is reachable there, so fetch from npm and verify
+# against the sha512 published in dist.integrity. Fails closed on mismatch.
+# --------------------------------------------------------------------------
+install_engine() {
+  local skill="$root/.agents/skills/impeccable"
+  [ -d "$skill" ] || return 0
 
-case "$(uname -s)" in
-  Linux)  os=linux ;;
-  Darwin) os=darwin ;;
-  MINGW*|MSYS*|CYGWIN*|Windows_NT) os=windows ;;
-  *) echo "impeccable-engine: unsupported OS $(uname -s); skipping" >&2; exit 0 ;;
-esac
-case "$(uname -m)" in
-  x86_64|amd64)   arch=x64 ;;
-  arm64|aarch64)  arch=arm64 ;;
-  *) echo "impeccable-engine: unsupported arch $(uname -m); skipping" >&2; exit 0 ;;
-esac
+  local ver
+  ver=$(tr -d '[:space:]' < "$skill/scripts/VERSION" 2>/dev/null)
+  [ -n "$ver" ] || { echo "impeccable-engine: no scripts/VERSION; skipping" >&2; return 0; }
 
-dest="$skill/scripts/bin/$os-$arch"
-bin="$dest/impeccable"
-[ "$os" = windows ] && bin="$bin.exe"
+  local os arch
+  case "$(uname -s)" in
+    Linux)  os=linux ;;
+    Darwin) os=darwin ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT) os=windows ;;
+    *) echo "impeccable-engine: unsupported OS $(uname -s); skipping" >&2; return 0 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64)  arch=x64 ;;
+    arm64|aarch64) arch=arm64 ;;
+    *) echo "impeccable-engine: unsupported arch $(uname -m); skipping" >&2; return 0 ;;
+  esac
 
-# Idempotent: a working engine of the right version is left alone.
-if [ -x "$bin" ] && [ "$(IMPECCABLE_LAUNCHER_PROBE=1 "$bin" engine-probe 2>/dev/null || true)" = "impeccable-engine $ver" ]; then
-  echo "impeccable-engine $ver already present"
-  exit 0
-fi
+  local dest="$skill/scripts/bin/$os-$arch" bin
+  bin="$dest/impeccable"; [ "$os" = windows ] && bin="$bin.exe"
 
-command -v npm >/dev/null 2>&1 || { echo "impeccable-engine: npm not found; skipping" >&2; exit 0; }
+  if [ -x "$bin" ] && [ "$(IMPECCABLE_LAUNCHER_PROBE=1 "$bin" engine-probe 2>/dev/null)" = "impeccable-engine $ver" ]; then
+    echo "impeccable-engine $ver already present"
+    return 0
+  fi
 
-pkg="@impeccable/cli-$os-$arch"
-integrity=$(npm view "$pkg@$ver" dist.integrity 2>/dev/null | tr -d "'\" " || true)
-tarball=$(npm view "$pkg@$ver" dist.tarball 2>/dev/null | tr -d "'\" " || true)
-if [ -z "$integrity" ] || [ -z "$tarball" ]; then
-  echo "impeccable-engine: no npm metadata for $pkg@$ver; skipping (skill degrades gracefully)" >&2
-  exit 0
-fi
+  command -v npm >/dev/null 2>&1 || { echo "impeccable-engine: npm not found; skipping" >&2; return 0; }
 
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-if ! curl -fsSL --retry 2 -o "$tmp/pkg.tgz" "$tarball"; then
-  echo "impeccable-engine: download failed for $pkg@$ver; skipping" >&2
-  exit 0
-fi
+  local pkg integrity tarball
+  pkg="@impeccable/cli-$os-$arch"
+  integrity=$(npm view "$pkg@$ver" dist.integrity 2>/dev/null | tr -d "'\" ")
+  tarball=$(npm view "$pkg@$ver" dist.tarball 2>/dev/null | tr -d "'\" ")
+  if [ -z "$integrity" ] || [ -z "$tarball" ]; then
+    echo "impeccable-engine: no npm metadata for $pkg@$ver; skipping" >&2; return 0
+  fi
 
-# Fail closed on verification, exactly as the vendor's launcher does.
-alg=${integrity%%-*}
-want=${integrity#*-}
-case "$alg" in
-  sha512) got=$(openssl dgst -sha512 -binary "$tmp/pkg.tgz" | openssl base64 -A) ;;
-  sha256) got=$(openssl dgst -sha256 -binary "$tmp/pkg.tgz" | openssl base64 -A) ;;
-  *) echo "impeccable-engine: unknown integrity algorithm '$alg'; refusing" >&2; exit 0 ;;
-esac
-if [ "$got" != "$want" ]; then
-  echo "impeccable-engine: integrity mismatch for $pkg@$ver; refusing the download" >&2
-  exit 0
-fi
+  local tmp; tmp=$(mktemp -d) || return 0
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" RETURN
 
-tar -xzf "$tmp/pkg.tgz" -C "$tmp" package/bin/ 2>/dev/null || {
-  echo "impeccable-engine: no bin/ in $pkg@$ver; skipping" >&2; exit 0; }
-src=$(find "$tmp/package/bin" -type f | head -1)
-[ -n "$src" ] || { echo "impeccable-engine: empty bin/; skipping" >&2; exit 0; }
+  curl -fsSL --retry 2 -o "$tmp/pkg.tgz" "$tarball" 2>/dev/null || {
+    echo "impeccable-engine: download failed for $pkg@$ver; skipping" >&2; return 0; }
 
-mkdir -p "$dest"
-cp "$src" "$bin"
-chmod +x "$bin"
-echo "impeccable-engine $ver installed from $pkg ($alg verified)"
+  local alg want got
+  alg=${integrity%%-*}; want=${integrity#*-}
+  case "$alg" in
+    sha512) got=$(openssl dgst -sha512 -binary "$tmp/pkg.tgz" | openssl base64 -A) ;;
+    sha256) got=$(openssl dgst -sha256 -binary "$tmp/pkg.tgz" | openssl base64 -A) ;;
+    *) echo "impeccable-engine: unknown integrity algorithm '$alg'; refusing" >&2; return 0 ;;
+  esac
+  [ "$got" = "$want" ] || { echo "impeccable-engine: integrity mismatch for $pkg@$ver; refusing" >&2; return 0; }
+
+  tar -xzf "$tmp/pkg.tgz" -C "$tmp" package/bin/ 2>/dev/null || {
+    echo "impeccable-engine: no bin/ in $pkg@$ver; skipping" >&2; return 0; }
+  local src; src=$(find "$tmp/package/bin" -type f | head -1)
+  [ -n "$src" ] || { echo "impeccable-engine: empty bin/; skipping" >&2; return 0; }
+
+  mkdir -p "$dest" && cp "$src" "$bin" && chmod +x "$bin" || {
+    echo "impeccable-engine: install failed; skipping" >&2; return 0; }
+  echo "impeccable-engine $ver installed from $pkg ($alg verified)"
+}
+
+# --------------------------------------------------------------------------
+# 2. user-level skills
+#
+# Cross-project skills belong in ~/.claude/skills rather than vendored here,
+# but that directory does not survive a cloud container, so re-clone whatever
+# is missing. Format: "<dir-name> <clone-url>", one per line.
+# --------------------------------------------------------------------------
+USER_SKILLS="
+napkin https://github.com/blader/napkin.git
+"
+
+install_user_skills() {
+  local skills_dir="${HOME:-/nonexistent}/.claude/skills" name url dest
+  while read -r name url; do
+    [ -n "$name" ] && [ -n "$url" ] || continue
+    dest="$skills_dir/$name"
+    if [ -f "$dest/SKILL.md" ]; then
+      echo "user skill '$name' already present"
+      continue
+    fi
+    mkdir -p "$skills_dir" 2>/dev/null || {
+      echo "user skill '$name': cannot write $skills_dir; skipping" >&2; continue; }
+    rm -rf "$dest"
+    if git clone --depth 1 --quiet "$url" "$dest" 2>/dev/null && [ -f "$dest/SKILL.md" ]; then
+      echo "user skill '$name' cloned from $url"
+    else
+      rm -rf "$dest"
+      echo "user skill '$name': clone failed from $url; skipping" >&2
+    fi
+  done <<< "$USER_SKILLS"
+}
+
+install_engine
+install_user_skills
+exit 0
