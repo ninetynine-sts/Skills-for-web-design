@@ -108,6 +108,42 @@ restores signature checking and gets you current:
 npx impeccable install
 ```
 
+## Using these skills in EVERY session (any repo)
+
+Project skills only load for the repo they live in. To get all of them in every
+session regardless of repo, install them at **user level** with:
+
+```sh
+scripts/install-user-skills.sh
+```
+
+It symlinks every skill in `.agents/skills/` into `~/.claude/skills/`, installs
+the impeccable engine, and clones the external user-level skills. Symlinks, not
+copies — so `git pull` in this repo updates them with no reinstall. Idempotent,
+and it never clobbers a real directory you installed by hand.
+
+On your own machine, run it once and you are done.
+
+### Cloud sessions
+
+`~/.claude/` is ephemeral in a cloud container, so it has to run per session.
+Put this in the environment's **Setup script** (cloud environment menu in the
+session title bar → Edit) and every cloud session, in any repo, gets all the
+skills:
+
+```sh
+REPO=~/.claude/skills-src/Skills-for-web-design
+[ -d "$REPO/.git" ] || git clone --depth 1 https://github.com/ninetynine-sts/Skills-for-web-design "$REPO"
+git -C "$REPO" pull --ff-only -q 2>/dev/null || true
+"$REPO/scripts/install-user-skills.sh"
+```
+
+That self-updates: each session pulls the latest skills before installing.
+
+Sessions started from *this* repo do not need it — `.claude/hooks/session-start.sh`
+runs the same script with `--no-link`, since the project skills already load and
+user-level copies would only duplicate them.
+
 ## User-level skills
 
 Some skills are cross-project and belong in `~/.claude/skills/` rather than
