@@ -110,6 +110,36 @@ restores signature checking and gets you current:
 npx impeccable install
 ```
 
+## Claude account skills (works in Claude *and* Code, everywhere)
+
+Uploading a skill to your Claude account is the only route that reaches plain
+Claude conversations as well as Claude Code, on every device, with no per-repo
+or per-environment setup.
+
+Build the upload bundles with:
+
+```sh
+./scripts/package-account-skills.sh
+```
+
+Then upload at **claude.ai → Settings → Capabilities → Skills**.
+
+**One skill per zip.** The uploader enforces it:
+
+> Zip must contain exactly one top-level folder.
+> Zip must contain exactly one SKILL.md file.
+
+So a combined archive of several skills is rejected — upload them individually.
+The script verifies every zip against both rules before you spend an upload.
+
+`impeccable` is excluded and cannot be an account skill: it shells out to a
+compiled engine, so it needs a shell and a filesystem. It stays Claude Code only.
+
+Skills that audit a codebase (`break-ui`, `improve-animations`,
+`find-animation-opportunities`, `review-animations`, `redesign-existing-projects`)
+upload fine but have nothing to read in a chat with no repo. The script prints the
+subset worth having in plain chat.
+
 ## Using these skills in EVERY session (any repo)
 
 Project skills only load for the repo they live in. To get all of them in every

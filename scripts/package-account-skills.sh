@@ -8,10 +8,14 @@
 # down to ~/.claude/skills/synced/. Nothing on disk can register one, so this
 # only builds the artifacts you upload by hand.
 #
+# The uploader accepts ONE SKILL PER ZIP and rejects anything else:
+#   "Zip must contain exactly one top-level folder."
+#   "Zip must contain exactly one SKILL.md file."
+# So this builds one zip per skill and no combined archive -- a bundle of
+# several skills is rejected on upload. Upload them one at a time.
+#
 # Output (dist/, gitignored):
-#   <skill>.zip                   one per skill, as <name>/SKILL.md
-#   CURATED-for-claude-chat.zip   the ones worth having in a plain chat
-#   ALL-design-skills.zip         every packaged skill in one archive
+#   <skill>.zip   one per skill, as <name>/SKILL.md
 set -uo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,16 +50,22 @@ for d in */; do
   zip -q -r "$out/$n.zip" "$n" && made=$((made+1))
 done
 
-curated_found=""
-for n in $CURATED; do
-  [ -f "$n/SKILL.md" ] && curated_found="$curated_found $n" || echo "curated: '$n' not found, skipping" >&2
-done
-# shellcheck disable=SC2086
-[ -n "$curated_found" ] && zip -q -r "$out/CURATED-for-claude-chat.zip" $curated_found
 
-ex=(); for n in $EXCLUDE; do ex+=(-x "$n/*" -x "$n"); done
-zip -q -r "$out/ALL-design-skills.zip" . "${ex[@]}"
+
+# Verify each zip against the uploader's rules before anyone wastes an upload.
+fail=0
+for z in "$out"/*.zip; do
+  tops=$(unzip -Z1 "$z" | awk -F/ '{print $1}' | sort -u | wc -l)
+  one=$(unzip -Z1 "$z" | grep -c '^[^/]*/SKILL\.md$')
+  if [ "$tops" -ne 1 ] || [ "$one" -ne 1 ]; then
+    echo "INVALID $(basename "$z"): top-level folders=$tops SKILL.md=$one" >&2; fail=1
+  fi
+done
+[ "$fail" = 0 ] && echo "all zips valid: exactly one top-level folder and one SKILL.md each"
 
 echo "packaged $made skills into $out"
 [ -n "$skipped" ] && echo "skipped:$skipped"
-echo "curated bundle:$curated_found"
+echo
+echo "Upload one at a time at claude.ai -> Settings -> Capabilities -> Skills."
+echo "Worth having in a plain chat (no repo, no shell):"
+for n in $CURATED; do [ -f "$out/$n.zip" ] && echo "  $n.zip"; done
