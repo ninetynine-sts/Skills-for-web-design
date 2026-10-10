@@ -22,8 +22,15 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 src="$repo/.agents/skills"
 out="$repo/dist/account-skills"
 
-# Needs a compiled engine and a shell, so it cannot work as an account skill.
-EXCLUDE="impeccable"
+# Cannot work as account skills regardless of file types, because they drive an
+# external CLI or compiled engine that a plain chat has no way to run.
+#   impeccable   -- compiled Rust engine
+#   hyperframes* -- the HyperFrames CLI (`hyperframes <verb>`, `heygen ...`)
+EXCLUDE="impeccable hyperframes hyperframes-cli hyperframes-core
+hyperframes-registry hyperframes-studio hyperframes-animation hyperframes-audio
+hyperframes-creative hyperframes-keyframes slideshow media-use motion-graphics
+general-video faceless-explainer product-launch-video pr-to-video music-to-video
+remotion-to-hyperframes talking-head-recut embedded-captions figma"
 
 # Work in a plain conversation: design taste, style systems, image direction,
 # and reference knowledge. The rest need a repo to read or a shell to run.
@@ -41,10 +48,20 @@ made=0 skipped=""
 for d in */; do
   n=${d%/}
   [ -f "$n/SKILL.md" ] || continue
-  case " $EXCLUDE " in *" $n "*) skipped="$skipped $n(needs-runtime)"; continue ;; esac
+  # Collapse newlines: EXCLUDE spans several lines, and a space-delimited
+  # match silently misses any entry sitting at the start of a line.
+  case " $(printf '%s' "$EXCLUDE" | tr '\n' ' ') " in
+    *" $n "*) skipped="$skipped $n(needs-runtime)"; continue ;;
+  esac
   # A skill shipping non-markdown files usually implies a runtime the chat
   # surface does not have; leave those to Claude Code.
-  if find "$n" -type f ! -name '*.md' | grep -q .; then
+  #
+  # No pipe here, deliberately. `find ... | grep -q .` is wrong under
+  # `set -o pipefail`: grep -q exits at the first match, find dies of SIGPIPE,
+  # and pipefail reports the pipeline as failed -- so the guard reads "no
+  # non-md files" and packages the skill anyway. It is a race, so it caught
+  # small skills and missed large ones.
+  if [ -n "$(find "$n" -type f ! -name '*.md' -print -quit)" ]; then
     skipped="$skipped $n(non-md)"; continue
   fi
   zip -q -r "$out/$n.zip" "$n" && made=$((made+1))

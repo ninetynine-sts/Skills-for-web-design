@@ -18,11 +18,16 @@ needs; see below.
 | [`Leonxlnx/taste-skill`](https://github.com/Leonxlnx/taste-skill) | `brandkit`, `design-taste-frontend`, `design-taste-frontend-v1`, `full-output-enforcement`, `gpt-taste`, `high-end-visual-design`, `image-to-code`, `imagegen-frontend-mobile`, `imagegen-frontend-web`, `industrial-brutalist-ui`, `minimalist-ui`, `redesign-existing-projects`, `stitch-design-taste` |
 | [`LottieFiles/motion-design-skill`](https://github.com/LottieFiles/motion-design-skill) | `motion-design` |
 | [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | `impeccable` |
+| [`heygen-com/hyperframes`](https://github.com/heygen-com/hyperframes) | 21 video/motion skills — `hyperframes` (entry point), `hyperframes-core/-cli/-animation/-audio/-creative/-keyframes/-registry/-studio`, `embedded-captions`, `faceless-explainer`, `figma`, `general-video`, `media-use`, `motion-graphics`, `music-to-video`, `pr-to-video`, `product-launch-video`, `remotion-to-hyperframes`, `slideshow`, `talking-head-recut` |
 
 `emilkowalski/skill`, `Leonxlnx/taste-skill` and `LottieFiles/motion-design-skill`
 were installed with `npx skills add <repo>` and are tracked in `skills-lock.json`
-(28 skills, each with a content hash). All three are markdown-only — no scripts
-or binaries.
+(49 skills, each with a content hash).
+
+`heygen-com/hyperframes` is the exception to markdown-only: 37 MB, 208 scripts
+(`.mjs`/`.cjs`/`.sh`/`.py`), fonts, images and audio. It is a video framework
+driven by the `hyperframes` CLI, so it is Claude Code only and cannot be used as
+an account skill. Start at `/hyperframes`, which routes to the right workflow.
 
 ## The `impeccable` skill
 
