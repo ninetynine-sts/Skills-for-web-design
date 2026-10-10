@@ -110,6 +110,37 @@ restores signature checking and gets you current:
 npx impeccable install
 ```
 
+## MCP servers
+
+`scripts/install-user-skills.sh` also re-registers user-scope MCP servers, since
+`claude mcp add -s user` writes to `~/.claude.json`, which is ephemeral in a
+cloud container.
+
+| Server | Package | Key |
+|---|---|---|
+| `designmd` | `designmd-mcp` | `DESIGNMD_API_KEY` |
+
+Add one by appending a `"<name> <env-var> <command...>"` line to `MCP_SERVERS`
+in that script.
+
+### Keys stay out of the repo
+
+The key is registered as `${DESIGNMD_API_KEY}`, not as a literal. Claude Code
+expands it when it launches the server, so the secret lives in the environment
+and never reaches `~/.claude.json`, this repo, or a chat message.
+
+Set it in the environment settings (cloud environment menu in the session title
+bar → Edit) under **Network secrets**, or as a plain environment variable where
+that section is not offered. A new session picks it up. Locally, export it from
+your shell profile.
+
+Until it is set, the server registers and connects but cannot authenticate, and
+Claude Code says so:
+
+```
+[Warning] [designmd] mcpServers.designmd: Missing environment variables: DESIGNMD_API_KEY
+```
+
 ## Claude account skills (works in Claude *and* Code, everywhere)
 
 Uploading a skill to your Claude account is the only route that reaches plain

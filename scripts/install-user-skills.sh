@@ -117,7 +117,44 @@ link_repo_skills() {
   echo "linked $n skills from $repo into $skills_dir"
 }
 
+# --------------------------------------------------------------------------
+# User-scope MCP servers.
+#
+# `claude mcp add -s user` writes to ~/.claude.json, which is ephemeral in a
+# cloud container, so re-register anything missing. The API key is referenced
+# as ${VAR} rather than embedded: Claude Code expands it at launch, so the
+# secret lives in the environment (environment settings -> Network secrets, or
+# an environment variable) and never lands in a config file or this repo.
+#
+# Format: "<name> <env-var> <command...>", one per line.
+# --------------------------------------------------------------------------
+MCP_SERVERS="
+designmd DESIGNMD_API_KEY npx designmd-mcp
+"
+
+install_mcp_servers() {
+  command -v claude >/dev/null 2>&1 || { echo "mcp: claude CLI not found; skipping" >&2; return 0; }
+  local name var cmd existing
+  existing=$(claude mcp list 2>/dev/null)
+  while read -r name var cmd; do
+    [ -n "$name" ] && [ -n "$var" ] && [ -n "$cmd" ] || continue
+    if printf '%s' "$existing" | grep -q "^$name:"; then
+      echo "mcp '$name' already registered"
+    elif claude mcp add -s user "$name" -e "$var=\${$var}" -- $cmd >/dev/null 2>&1; then
+      echo "mcp '$name' registered (key from \$$var)"
+    else
+      echo "mcp '$name': registration failed; skipping" >&2
+      continue
+    fi
+    if [ -z "$(eval printf '%s' "\"\${$var:-}\"")" ]; then
+      echo "  note: \$$var is not set, so '$name' will not authenticate." >&2
+      echo "  Add it in the environment settings; a new session picks it up." >&2
+    fi
+  done <<< "$MCP_SERVERS"
+}
+
 install_engine
 install_external_skills
+install_mcp_servers
 [ "$link_skills" = 1 ] && link_repo_skills
 exit 0
