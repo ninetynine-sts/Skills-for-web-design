@@ -115,6 +115,19 @@ restores signature checking and gets you current:
 npx impeccable install
 ```
 
+## CLI tools
+
+Some skills shell out to a CLI and are inert without it. A global npm install
+does not survive a cloud container, so `scripts/install-user-skills.sh`
+reinstalls anything missing (~13s cold, a no-op once present).
+
+| CLI | Package | Used by |
+|---|---|---|
+| `hyperframes` | `hyperframes` | the 21 `heygen-com/hyperframes` skills |
+
+Add one by appending a `"<command> <npm-package>"` line to `CLI_TOOLS` in that
+script.
+
 ## MCP servers
 
 `scripts/install-user-skills.sh` also re-registers user-scope MCP servers, since

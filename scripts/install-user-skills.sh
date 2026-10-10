@@ -153,7 +153,38 @@ install_mcp_servers() {
   done <<< "$MCP_SERVERS"
 }
 
+# --------------------------------------------------------------------------
+# CLI tools some skills shell out to.
+#
+# A skill that drives a CLI is inert without it, and a global npm install does
+# not survive a cloud container, so reinstall anything missing. Pinned by major
+# version only; npm resolves the rest.
+#
+# Format: "<command> <npm-package>", one per line.
+# --------------------------------------------------------------------------
+CLI_TOOLS="
+hyperframes hyperframes
+"
+
+install_cli_tools() {
+  command -v npm >/dev/null 2>&1 || { echo "cli: npm not found; skipping" >&2; return 0; }
+  local cmd pkg
+  while read -r cmd pkg; do
+    [ -n "$cmd" ] && [ -n "$pkg" ] || continue
+    if command -v "$cmd" >/dev/null 2>&1; then
+      echo "cli '$cmd' already present ($("$cmd" --version 2>/dev/null | head -1))"
+      continue
+    fi
+    if npm install -g "$pkg" >/dev/null 2>&1 && command -v "$cmd" >/dev/null 2>&1; then
+      echo "cli '$cmd' installed from $pkg"
+    else
+      echo "cli '$cmd': install failed; skills needing it will not run" >&2
+    fi
+  done <<< "$CLI_TOOLS"
+}
+
 install_engine
+install_cli_tools
 install_external_skills
 install_mcp_servers
 [ "$link_skills" = 1 ] && link_repo_skills
